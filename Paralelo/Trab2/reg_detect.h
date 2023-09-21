@@ -41,8 +41,8 @@
 #  endif
 
 #  ifdef EXTRALARGE_DATASET
-#   define NITER 10000
-#   define LENGTH 500
+#   define NITER 1000
+#   define LENGTH 50000
 #   define MAXGRID 12
 #  endif
 # endif /* !N */
