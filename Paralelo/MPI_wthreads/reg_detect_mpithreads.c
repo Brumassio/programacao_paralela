@@ -1,110 +1,103 @@
 #include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include <stdlib.h>
 #include <mpi.h>
-#include <omp.h>
+#include <pthread.h>
+#include <string.h>
 
-/* Include benchmark-specific header. */
-/* Default data type is int, default size is 50. */
-#include "reg_detect.h"
-
-/* Number of threads for OpenMP */
+#define MAXGRID 1000
+#define LENGTH 100
+#define NITER 10
+#define DATA_TYPE double
 #define NUM_THREADS 4
 
-/* Array initialization. */
-static
+/* Include polybench common header. */
+#include "polybench.h"
+
+/* Include benchmark-specific header. */
+#include "reg_detect.h"
+
+pthread_barrier_t barrier;
+
+struct ThreadData {
+    int thread_id;
+    int maxgrid;
+    int length;
+    DATA_TYPE (*sum_tang)[MAXGRID][MAXGRID];
+    DATA_TYPE (*mean)[MAXGRID][MAXGRID];
+    DATA_TYPE (*path)[MAXGRID][MAXGRID];
+    DATA_TYPE (*diff)[MAXGRID][MAXGRID][LENGTH];
+    DATA_TYPE (*sum_diff)[MAXGRID][MAXGRID][LENGTH];
+};
+
+#define DATA_PRINTF_MODIFIER "%lf"
+
 void init_array(int maxgrid,
-                DATA_TYPE POLYBENCH_2D(sum_tang, MAXGRID, MAXGRID, maxgrid, maxgrid),
-                DATA_TYPE POLYBENCH_2D(mean, MAXGRID, MAXGRID, maxgrid, maxgrid),
-                DATA_TYPE POLYBENCH_2D(path, MAXGRID, MAXGRID, maxgrid, maxgrid))
+                DATA_TYPE POLYBENCH_2D(sum_tang,MAXGRID,MAXGRID,maxgrid,maxgrid),
+                DATA_TYPE POLYBENCH_2D(mean,MAXGRID,MAXGRID,maxgrid,maxgrid),
+                DATA_TYPE POLYBENCH_2D(path,MAXGRID,MAXGRID,maxgrid,maxgrid))
 {
     int i, j;
 
     for (i = 0; i < maxgrid; i++)
         for (j = 0; j < maxgrid; j++) {
-            sum_tang[i][j] = (DATA_TYPE)((i + 1) * (j + 1));
-            mean[i][j] = ((DATA_TYPE)i - j) / maxgrid;
-            path[i][j] = ((DATA_TYPE)i * (j - 1)) / maxgrid;
+            sum_tang[i][j] = (DATA_TYPE)((i+1)*(j+1));
+            mean[i][j] = ((DATA_TYPE) i-j) / maxgrid;
+            path[i][j] = ((DATA_TYPE) i*(j-1)) / maxgrid;
         }
 }
 
-/* DCE code. Must scan the entire live-out data.
-   Can be used also to check the correctness of the output. */
-static
 void print_array(int maxgrid,
-                 DATA_TYPE POLYBENCH_2D(path, MAXGRID, MAXGRID, maxgrid, maxgrid))
+                 DATA_TYPE POLYBENCH_2D(path,MAXGRID,MAXGRID,maxgrid,maxgrid))
 {
     int i, j;
 
     for (i = 0; i < maxgrid; i++)
         for (j = 0; j < maxgrid; j++) {
-            fprintf(stderr, DATA_PRINTF_MODIFIER, path[i][j]);
-            if ((i * maxgrid + j) % 20 == 0) fprintf(stderr, "\n");
+            fprintf (stderr, DATA_PRINTF_MODIFIER, path[i][j]);
+            if ((i * maxgrid + j) % 20 == 0) fprintf (stderr, "\n");
         }
-    fprintf(stderr, "\n");
+    fprintf (stderr, "\n");
 }
 
-/* Main computational kernel. */
-/* Source (modified): http://www.cs.uic.edu/~iluican/reg_detect.c */
-static
-void kernel_reg_detect(int niter, int maxgrid, int length,
-                       DATA_TYPE POLYBENCH_2D(sum_tang, MAXGRID, MAXGRID, maxgrid, maxgrid),
-                       DATA_TYPE POLYBENCH_2D(mean, MAXGRID, MAXGRID, maxgrid, maxgrid),
-                       DATA_TYPE POLYBENCH_2D(path, MAXGRID, MAXGRID, maxgrid, maxgrid),
-                       DATA_TYPE POLYBENCH_3D(diff, MAXGRID, MAXGRID, LENGTH, maxgrid, maxgrid, length),
-                       DATA_TYPE POLYBENCH_3D(sum_diff, MAXGRID, MAXGRID, LENGTH, maxgrid, maxgrid, length))
-{
-    int t, i, j, cnt;
+void* thread_function(void* arg) {
+    struct ThreadData* data = (struct ThreadData*)arg;
+    int maxgrid = data->maxgrid;
+    int length = data->length;
 
-#pragma omp parallel private(t, i, j, cnt)
-    {
-        int num_threads = omp_get_num_threads();
-        int thread_id = omp_get_thread_num();
-        int chunk_size = maxgrid / num_threads;
-        int start = thread_id * chunk_size;
-        int end = (thread_id == num_threads - 1) ? maxgrid : start + chunk_size;
+    for (int t = 0; t < NITER; t++) {
+        for (int j = 0; j < maxgrid; j++)
+            for (int i = j; i < maxgrid; i++)
+                for (int cnt = 0; cnt < length; cnt++)
+                    data->diff[j][i][cnt] = data->sum_tang[j][i][cnt];
 
-        for (t = 0; t < niter; t++) {
-            for (j = start; j < end; j++) {
-                for (i = j; i < maxgrid; i++) {
-                    for (cnt = 0; cnt < length; cnt++)
-                        diff[j][i][cnt] = sum_tang[j][i];
-                }
-            }
-
-            for (j = start; j < end; j++) {
-                for (i = j; i < maxgrid; i++) {
-                    sum_diff[j][i][0] = diff[j][i][0];
-                    for (cnt = 1; cnt < length; cnt++)
-                        sum_diff[j][i][cnt] = sum_diff[j][i][cnt - 1] + diff[j][i][cnt];
-                    mean[j][i] = sum_diff[j][i][length - 1];
-                }
-            }
-
-            for (i = start; i < end; i++)
-                path[0][i] = mean[0][i];
-
-            for (j = start + 1; j < maxgrid; j++) {
-                for (i = j; i < maxgrid; i++) {
-                    path[j][i] = path[j - 1][i - 1] + mean[j][i];
-                }
+        for (int j = 0; j < maxgrid; j++) {
+            for (int i = j; i < maxgrid; i++) {
+                data->sum_diff[j][i][0] = data->diff[j][i][0];
+                for (int cnt = 1; cnt < length; cnt++)
+                    data->sum_diff[j][i][cnt] = data->sum_diff[j][i][cnt - 1] + data->diff[j][i][cnt];
+                data->mean[j][i] = data->sum_diff[j][i][length - 1];
             }
         }
+
+        for (int i = 0; i < maxgrid; i++)
+            data->path[0][i] = data->mean[0][i];
+
+        for (int j = 1; j < maxgrid; j++)
+            for (int i = j; i < maxgrid; i++)
+                data->path[j][i] = data->path[j - 1][i - 1] + data->mean[j][i];
     }
+
+    pthread_barrier_wait(&barrier);
+    return NULL;
 }
 
-int main(int argc, char **argv)
-{
-    /* Initialize MPI */
+int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
 
-    /* Retrieve the rank and size of the MPI process. */
-    int rank, size;
+    int num_procs, rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    /* Retrieve problem size. */
-    int niter = NITER;
     int maxgrid = MAXGRID;
     int length = LENGTH;
 
@@ -115,30 +108,38 @@ int main(int argc, char **argv)
     POLYBENCH_3D_ARRAY_DECL(diff, DATA_TYPE, MAXGRID, MAXGRID, LENGTH, maxgrid, maxgrid, length);
     POLYBENCH_3D_ARRAY_DECL(sum_diff, DATA_TYPE, MAXGRID, MAXGRID, LENGTH, maxgrid, maxgrid, length);
 
-    /* Initialize array(s). */
-    init_array(maxgrid,
-               POLYBENCH_ARRAY(sum_tang),
-               POLYBENCH_ARRAY(mean),
-               POLYBENCH_ARRAY(path));
+    init_array(maxgrid, POLYBENCH_ARRAY(sum_tang), POLYBENCH_ARRAY(mean), POLYBENCH_ARRAY(path));
 
-    /* Start timer. */
-    double start_time = MPI_Wtime();
+    polybench_start_instruments;
 
-    /* Run kernel. */
-    kernel_reg_detect(niter, maxgrid, length,
-                      POLYBENCH_ARRAY(sum_tang),
-                      POLYBENCH_ARRAY(mean),
-                      POLYBENCH_ARRAY(path),
-                      POLYBENCH_ARRAY(diff),
-                      POLYBENCH_ARRAY(sum_diff));
+    pthread_t threads[NUM_THREADS];
+    struct ThreadData thread_data[NUM_THREADS];
 
-    /* Stop timer. */
-    double end_time = MPI_Wtime();
+    pthread_barrier_init(&barrier, NULL, NUM_THREADS);
 
-    /* Calculate and print execution time. */
-    if (rank == 0) {
-        printf("Execution Time: %f seconds\n", end_time - start_time);
+    int maxgrid_per_thread = maxgrid / NUM_THREADS;
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_data[i].thread_id = i;
+        thread_data[i].maxgrid = maxgrid_per_thread;
+        thread_data[i].length = length;
+        thread_data[i].sum_tang = &sum_tang[i * maxgrid_per_thread];
+        thread_data[i].mean = &mean[i * maxgrid_per_thread];
+        thread_data[i].path = &path[i * maxgrid_per_thread];
+        thread_data[i].diff = &diff[i * maxgrid_per_thread];
+        thread_data[i].sum_diff = &sum_diff[i * maxgrid_per_thread];
+
+        pthread_create(&threads[i], NULL, thread_function, (void*)&thread_data[i]);
     }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    pthread_barrier_destroy(&barrier);
+
+    polybench_stop_instruments;
+    polybench_print_instruments;
 
     /* Prevent dead-code elimination. All live-out data must be printed
        by the function call in argument. */
@@ -151,7 +152,6 @@ int main(int argc, char **argv)
     POLYBENCH_FREE_ARRAY(diff);
     POLYBENCH_FREE_ARRAY(sum_diff);
 
-    /* Finalize MPI */
     MPI_Finalize();
 
     return 0;
