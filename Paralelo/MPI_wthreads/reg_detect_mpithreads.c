@@ -32,66 +32,72 @@ struct ThreadData {
 #define DATA_PRINTF_MODIFIER "%lf"
 
 void init_array(int maxgrid,
-                DATA_TYPE POLYBENCH_2D(sum_tang,MAXGRID,MAXGRID,maxgrid,maxgrid),
-                DATA_TYPE POLYBENCH_2D(mean,MAXGRID,MAXGRID,maxgrid,maxgrid),
-                DATA_TYPE POLYBENCH_2D(path,MAXGRID,MAXGRID,maxgrid,maxgrid))
+                DATA_TYPE POLYBENCH_2D(sum_tang, MAXGRID, MAXGRID, maxgrid, maxgrid),
+                DATA_TYPE POLYBENCH_2D(mean, MAXGRID, MAXGRID, maxgrid, maxgrid),
+                DATA_TYPE POLYBENCH_2D(path, MAXGRID, MAXGRID, maxgrid, maxgrid))
 {
     int i, j;
 
     for (i = 0; i < maxgrid; i++)
         for (j = 0; j < maxgrid; j++) {
-            sum_tang[i][j] = (DATA_TYPE)((i+1)*(j+1));
-            mean[i][j] = ((DATA_TYPE) i-j) / maxgrid;
-            path[i][j] = ((DATA_TYPE) i*(j-1)) / maxgrid;
+            sum_tang[i][j] = (DATA_TYPE)((i + 1) * (j + 1));
+            mean[i][j] = ((DATA_TYPE)i - j) / maxgrid;
+            path[i][j] = ((DATA_TYPE)i * (j - 1)) / maxgrid;
         }
 }
 
 void print_array(int maxgrid,
-                 DATA_TYPE POLYBENCH_2D(path,MAXGRID,MAXGRID,maxgrid,maxgrid))
+                 DATA_TYPE POLYBENCH_2D(path, MAXGRID, MAXGRID, maxgrid, maxgrid))
 {
     int i, j;
 
     for (i = 0; i < maxgrid; i++)
         for (j = 0; j < maxgrid; j++) {
-            fprintf (stderr, DATA_PRINTF_MODIFIER, path[i][j]);
-            if ((i * maxgrid + j) % 20 == 0) fprintf (stderr, "\n");
+            fprintf(stderr, DATA_PRINTF_MODIFIER, path[i][j]);
+            if ((i * maxgrid + j) % 20 == 0)
+                fprintf(stderr, "\n");
         }
-    fprintf (stderr, "\n");
+    fprintf(stderr, "\n");
 }
 
-void* thread_function(void* arg) {
-    struct ThreadData* data = (struct ThreadData*)arg;
+void *thread_function(void *arg)
+{
+    struct ThreadData *data = (struct ThreadData *)arg;
     int maxgrid = data->maxgrid;
     int length = data->length;
 
-    for (int t = 0; t < NITER; t++) {
+    for (int t = 0; t < NITER; t++)
+    {
         for (int j = 0; j < maxgrid; j++)
             for (int i = j; i < maxgrid; i++)
                 for (int cnt = 0; cnt < length; cnt++)
-                    data->diff[j][i][cnt] = data->sum_tang[j][i][cnt];
+                    (*data->diff)[j][i][cnt] = (*data->sum_tang)[j][i]; 
 
-        for (int j = 0; j < maxgrid; j++) {
-            for (int i = j; i < maxgrid; i++) {
-                data->sum_diff[j][i][0] = data->diff[j][i][0];
+        for (int j = 0; j < maxgrid; j++)
+        {
+            for (int i = j; i < maxgrid; i++)
+            {
+                (*data->sum_diff)[j][i][0] = (*data->diff)[j][i][0];
                 for (int cnt = 1; cnt < length; cnt++)
-                    data->sum_diff[j][i][cnt] = data->sum_diff[j][i][cnt - 1] + data->diff[j][i][cnt];
-                data->mean[j][i] = data->sum_diff[j][i][length - 1];
+                    (*data->sum_diff)[j][i][cnt] = (*data->sum_diff)[j][i][cnt - 1] + (*data->diff)[j][i][cnt];
+                (*data->mean)[j][i] = (*data->sum_diff)[j][i][length - 1];
             }
         }
 
         for (int i = 0; i < maxgrid; i++)
-            data->path[0][i] = data->mean[0][i];
+            (*data->path)[0][i] = (*data->mean)[0][i];
 
         for (int j = 1; j < maxgrid; j++)
             for (int i = j; i < maxgrid; i++)
-                data->path[j][i] = data->path[j - 1][i - 1] + data->mean[j][i];
+                (*data->path)[j][i] = (*data->path)[j - 1][i - 1] + (*data->mean)[j][i];
     }
 
     pthread_barrier_wait(&barrier);
     return NULL;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
     MPI_Init(&argc, &argv);
 
     int num_procs, rank;
@@ -119,7 +125,8 @@ int main(int argc, char** argv) {
 
     int maxgrid_per_thread = maxgrid / NUM_THREADS;
 
-    for (int i = 0; i < NUM_THREADS; i++) {
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
         thread_data[i].thread_id = i;
         thread_data[i].maxgrid = maxgrid_per_thread;
         thread_data[i].length = length;
@@ -129,10 +136,11 @@ int main(int argc, char** argv) {
         thread_data[i].diff = &diff[i * maxgrid_per_thread];
         thread_data[i].sum_diff = &sum_diff[i * maxgrid_per_thread];
 
-        pthread_create(&threads[i], NULL, thread_function, (void*)&thread_data[i]);
+        pthread_create(&threads[i], NULL, thread_function, (void *)&thread_data[i]);
     }
 
-    for (int i = 0; i < NUM_THREADS; i++) {
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
         pthread_join(threads[i], NULL);
     }
 
