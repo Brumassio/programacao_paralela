@@ -17,33 +17,33 @@
 # if !defined(NITER) && !defined(LENGTH) && !defined(MAXGRID)
 /* Define the possible dataset sizes. */
 #  ifdef MINI_DATASET
-#   define NITER 10
-#   define LENGTH 32
-#   define MAXGRID 2
+#   define NITER 10000
+#   define LENGTH 1000
+#   define MAXGRID 20
 #  endif
 
 #  ifdef SMALL_DATASET
-#   define NITER 100
-#   define LENGTH 50
-#   define MAXGRID 6
+#   define NITER 15000
+#   define LENGTH 2000
+#   define MAXGRID 20
 #  endif
 
 #  ifdef STANDARD_DATASET /* Default if unspecified. */
-#   define NITER 10000
-#   define LENGTH 64
-#   define MAXGRID 6
+#   define NITER 20000
+#   define LENGTH 3000
+#   define MAXGRID 20
 #  endif
 
 #  ifdef LARGE_DATASET
-#   define NITER 1000
-#   define LENGTH 500
-#   define MAXGRID 12
+#   define NITER 25000
+#   define LENGTH 4000
+#   define MAXGRID 20
 #  endif
 
 #  ifdef EXTRALARGE_DATASET
-#   define NITER 1000
-#   define LENGTH 50000
-#   define MAXGRID 12
+#   define NITER 30000
+#   define LENGTH 5000
+#   define MAXGRID 20
 #  endif
 # endif /* !N */
 

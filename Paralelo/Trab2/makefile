@@ -1,7 +1,7 @@
 # Makefile para compilar todos os arquivos .c em um único executável
 
 # Compilador
-CC = mpicc
+CC = gcc
 
 # Opções do compilador
 CFLAGS = -O3

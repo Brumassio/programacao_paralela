@@ -96,12 +96,24 @@ static void *thread_kernel(void *args) {
 }
 
 int main(int argc, char **argv) {
+
     MPI_Init(&argc, &argv);
 
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-
+    
+    if (argc == 2 && strcmp(argv[1], "-h") == 0 && rank == 0) {
+        printf("Como compilar:\n");
+        printf("make DATASET_SIZE=*TAMANHO DESEJADO*\n");
+        printf("Tamanhos possiveis: -DSMALL_DATASET, -DSTANDARD_DATASET, -DLARGE_DATASET, -DEXTRALARGE_DATASET\n");
+        printf("Exemplo de compilacao:\n");
+        printf("make DATASET_SIZE=-DEXTRALARGE_DATASET\n");
+        printf("Exemplo de execucao\n");
+        printf("O nome gerado do executavel e atax_time\n");
+        printf("./atax_time\n");
+        return 0;
+    }
     int niter = NITER;
     int maxgrid = MAXGRID;
     int length = LENGTH;

@@ -12,7 +12,7 @@
 #include "reg_detect.h"
 
 /* Number of threads */
-#define NUM_THREADS 4
+#define NUM_THREADS 6
 
 /* Array initialization. */
 static
@@ -155,6 +155,17 @@ void kernel_reg_detect(int niter, int maxgrid, int length,
 
 int main(int argc, char **argv)
 {
+    if (argc == 2 && strcmp(argv[1], "-h") == 0) {
+        printf("Como compilar:\n");
+        printf("make DATASET_SIZE=*TAMANHO DESEJADO*\n");
+        printf("Tamanhos possiveis: -DSMALL_DATASET, -DSTANDARD_DATASET, -DLARGE_DATASET, -DEXTRALARGE_DATASET\n");
+        printf("Exemplo de compilacao:\n");
+        printf("make DATASET_SIZE=-DEXTRALARGE_DATASET\n");
+        printf("Exemplo de execucao\n");
+        printf("O nome gerado do executavel e atax_time\n");
+        printf("./atax_time\n");
+        return 0;
+    }
     /* Retrieve problem size. */
     int niter = NITER;
     int maxgrid = MAXGRID;
