@@ -63,7 +63,7 @@ void kernel_reg_detect(int niter, int maxgrid, int length,
             }
         }
 
-        // MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
 
         for (j = 0; j < maxgrid; j++) {
             for (i = j; i < maxgrid; i++) {
@@ -74,7 +74,7 @@ void kernel_reg_detect(int niter, int maxgrid, int length,
             }
         }
 
-        // MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
 
         for (i = 0; i < maxgrid; i++)
             path[0][i] = mean[0][i];
